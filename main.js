@@ -4,6 +4,8 @@ const axios = require("axios");
 const { MongoClient } = require("mongodb");
 var ObjectId = require("mongodb").ObjectId;
 const readline = require("readline");
+var config = require("./config.json");
+var envConfig = JSON.stringify(config);
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -39,8 +41,7 @@ async function createEmbeddings() {
 }
 
 async function main() {
-  const uri =
-    "mongodb+srv://hanapedia-prd-suser:Rb4ERw1ox569dP5g@hanapedia-dev.nroda.mongodb.net";
+  const uri = JSON.parse(envConfig).database_url;
   const client = new MongoClient(uri);
   try {
     await client.connect();
@@ -48,7 +49,6 @@ async function main() {
     const collection = database.collection("hnp_knowledgebase");
     // await createEmbeddings();
     rl.question("Enter Search Query: ", async (input) => {
-      console.log(`Thinking....: ${input}`);
       var query = input;
       const embedding = await generateEmbedding(query);
       const documents = await collection
@@ -70,7 +70,7 @@ async function main() {
       for (var document of documents) {
         fullContent += document.content;
       }
-      askAI(fullContent, query);
+      await askAI(fullContent, query);
       rl.close();
     });
 
@@ -82,14 +82,20 @@ async function main() {
 
 async function askAI(context, question) {
   const url = "https://api.openai.com/v1/engines/text-davinci-003/completions";
-  const openai_key = "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";
+  const openai_key = JSON.parse(envConfig).openAIKey;
   const client = axios.create({
-    headers: { Authorization: "Bearer " + openai_key },
+    headers: {
+      Authorization:
+        "Bearer " + "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",
+    },
   });
 
+  // var system_prompt = `Answer the question based on the context below, and if the question can't be answered based on
+  //   the context, say I don't know \n\nContext: ${context}\n\n---\n\nQuestion: ${question}\nAnswer:`;
+
   var system_prompt = `Answer the question based on the context below, and if the question can't be answered based on 
-    the context, say I don't know \n\nContext: ${context}\n\n---\n\nQuestion: ${question}\nAnswer:`;
-  console.log("\n\n\n=================ANSWER=========================");
+    the context, you can give your own answers \n\nContext: ${context}\n\n---\n\nQuestion: ${question}\nAnswer:`;
+  console.log("\n\n>");
 
   const params = {
     prompt: system_prompt,
@@ -99,9 +105,11 @@ async function askAI(context, question) {
   client
     .post(url, params)
     .then((result) => {
-      console.log(params.prompt + result.data.choices[0].text);
+      // console.log(params.prompt + result.data.choices[0].text);
+      console.log(`Question: ${question}`);
       answer = result.data.choices[0].text;
-      console.log("Answer: " + answer);
+      console.log("\nAnswer: " + answer);
+      process.exit();
     })
     .catch((err) => {
       console.log(err);
@@ -133,7 +141,7 @@ async function extractFileContent() {
 
 async function generateEmbedding(content) {
   const url = "https://api.openai.com/v1/embeddings";
-  const openai_key = "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";
+  const openai_key = JSON.parse(envConfig).openAIKey;
   try {
     const response = await axios.post(
       url,
@@ -151,7 +159,7 @@ async function generateEmbedding(content) {
 
     let responseData;
     if (response.status === 200) {
-      console.log("Successfully received embedding.");
+      // console.log("Successfully received embedding.");
       responseData = response.data;
     } else {
       console.log(
